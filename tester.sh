@@ -21,12 +21,21 @@ fi
 
 # Create temporary folder
 TMP_DIR=$(mktemp -d)
-cp "$USER_DIR"/* "$TMP_DIR"/
-cp life.c "$TMP_DIR"/
+
+# Copy reference life.c first
+cp life.c "$TMP_DIR"/ref_life.c
+
+# Copy user files (excluding test.c)
+for file in "$USER_DIR"/*.c "$USER_DIR"/*.h; do
+    if [ -f "$file" ] && [ "$(basename "$file")" != "test.c" ]; then
+        cp "$file" "$TMP_DIR"/
+    fi
+done
+
 cd "$TMP_DIR" || exit 1
 
 # Compile reference
-gcc -Wall -Wextra -Werror -std=c99 -o ref_life life.c >/dev/null 2>&1
+gcc -Wall -Wextra -Werror -std=c99 -o ref_life ref_life.c >/dev/null 2>&1
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ Reference compilation failed in TMP_DIR!${NC}"
     cd - >/dev/null
@@ -34,8 +43,8 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Compile user
-gcc -Wall -Wextra -Werror -std=c99 -o user_life *.c >/dev/null 2>&1
+# Compile user (only life.c, excluding test.c which was already filtered out)
+gcc -Wall -Wextra -Werror -std=c99 -o user_life life.c >/dev/null 2>&1
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ User compilation failed!${NC}"
     cd - >/dev/null
