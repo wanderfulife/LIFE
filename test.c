@@ -85,9 +85,9 @@ void game_of_life(int width, int height, int iterations) {
             }
         }
         // Copy the next generation from temp_board back to board
-        for (int i = 0; i < height * width; i++) {
+        for (int i = 0; i < height * width; i++) 
             board[i] = temp_board[i];
-        }
+        
     }
 
     // Output the final grid state to stdout
@@ -95,7 +95,7 @@ void game_of_life(int width, int height, int iterations) {
     for (int i = 0; i < height; i++) {
         for (int j = 0; j < width; j++) {
             if (board[i * width + j]) {
-                putchar('O');  // Alive cell
+                putchar('0');  // Alive cell
             } else {
                 putchar(' ');  // Dead cell
             }

@@ -22,31 +22,42 @@ fi
 # Create temporary folder
 TMP_DIR=$(mktemp -d)
 
-# Copy reference life.c first
-cp life.c "$TMP_DIR"/ref_life.c
+# Check if test.c exists to use as reference
+if [ ! -f "$USER_DIR/test.c" ]; then
+    echo -e "${RED}❌ Reference implementation (test.c) not found!${NC}"
+    rm -rf "$TMP_DIR"
+    exit 1
+fi
 
-# Copy user files (excluding test.c)
-for file in "$USER_DIR"/*.c "$USER_DIR"/*.h; do
-    if [ -f "$file" ] && [ "$(basename "$file")" != "test.c" ]; then
-        cp "$file" "$TMP_DIR"/
-    fi
-done
+# Copy reference test.c and test.h
+cp "$USER_DIR/test.c" "$TMP_DIR"/ref_life.c
+if [ -f "$USER_DIR/test.h" ]; then
+    cp "$USER_DIR/test.h" "$TMP_DIR"/ref_life.h
+fi
+
+# Copy user life.c and life.h
+cp "$USER_DIR/life.c" "$TMP_DIR"/user_life.c
+if [ -f "$USER_DIR/life.h" ]; then
+    cp "$USER_DIR/life.h" "$TMP_DIR"/life.h
+fi
 
 cd "$TMP_DIR" || exit 1
 
-# Compile reference
-gcc -Wall -Wextra -Werror -std=c99 -o ref_life ref_life.c >/dev/null 2>&1
+# Compile reference (test.c)
+gcc -Wall -Wextra -Werror -std=c99 -o ref_life ref_life.c 2>&1 | tee ref_compile.log >/dev/null
 if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Reference compilation failed in TMP_DIR!${NC}"
+    echo -e "${RED}❌ Reference compilation failed!${NC}"
+    cat ref_compile.log
     cd - >/dev/null
     rm -rf "$TMP_DIR"
     exit 1
 fi
 
-# Compile user (only life.c, excluding test.c which was already filtered out)
-gcc -Wall -Wextra -Werror -std=c99 -o user_life life.c >/dev/null 2>&1
+# Compile user (life.c)
+gcc -Wall -Wextra -Werror -std=c99 -o user_life user_life.c 2>&1 | tee user_compile.log >/dev/null
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ User compilation failed!${NC}"
+    cat user_compile.log
     cd - >/dev/null
     rm -rf "$TMP_DIR"
     exit 1
@@ -69,6 +80,11 @@ run_test() {
         return 0
     else
         echo -e "${RED}❌ $test_name failed! Output differs from reference:${NC}"
+        echo -e "${BLUE}Reference output (test.c):${NC}"
+        cat "$ref_out"
+        echo -e "${BLUE}User output (life.c):${NC}"
+        cat "$user_out"
+        echo -e "${YELLOW}Diff (< reference, > user):${NC}"
         diff "$ref_out" "$user_out"
         return 1
     fi
@@ -93,12 +109,20 @@ test5_match=$?
 run_test "Test6_Empty" "" 3 3 0
 test6_match=$?
 
-# Valgrind check silently
-valgrind_output=$(echo 'sdxddssaaww' | valgrind \
-    --leak-check=full --show-leak-kinds=all --track-origins=yes -s \
-    ./user_life 5 5 0 2>&1)
-has_leaks=$(echo "$valgrind_output" | grep -E "definitely lost: [^0]" || echo "")
-has_errors=$(echo "$valgrind_output" | grep -E "ERROR SUMMARY: [^0]" || echo "")
+# Valgrind check (if available)
+has_leaks=""
+has_errors=""
+valgrind_skipped=false
+
+if command -v valgrind >/dev/null 2>&1; then
+    valgrind_output=$(echo 'sdxddssaaww' | valgrind \
+        --leak-check=full --show-leak-kinds=all --track-origins=yes -s \
+        ./user_life 5 5 0 2>&1)
+    has_leaks=$(echo "$valgrind_output" | grep -E "definitely lost: [^0]" || echo "")
+    has_errors=$(echo "$valgrind_output" | grep -E "ERROR SUMMARY: [^0]" || echo "")
+else
+    valgrind_skipped=true
+fi
 
 # Determine overall result
 all_passed=true
@@ -111,24 +135,43 @@ if [ -n "$has_leaks" ] || [ -n "$has_errors" ]; then
     all_passed=false
 fi
 
-# Print errors only if something failed
+# Print results
+echo "======================================="
 if [ "$all_passed" = true ]; then
     echo -e "${GREEN}✅ ALL TESTS PASSED!${NC}"
+    echo ""
+    echo -e "${GREEN}✓${NC} Test1_Basic"
+    echo -e "${GREEN}✓${NC} Test2_Complex"
+    echo -e "${GREEN}✓${NC} Test3_Vertical"
+    echo -e "${GREEN}✓${NC} Test4_Evolution1"
+    echo -e "${GREEN}✓${NC} Test5_Evolution2"
+    echo -e "${GREEN}✓${NC} Test6_Empty"
+
+    if [ "$valgrind_skipped" = true ]; then
+        echo -e "${YELLOW}⚠${NC} Valgrind check skipped (not installed)"
+        echo -e "  Install with: ${BLUE}brew install valgrind${NC}"
+    else
+        echo -e "${GREEN}✓${NC} No memory leaks detected"
+    fi
 else
-    echo "======================================="
-    echo -e "${YELLOW}Detailed Issues:${NC}"
+    echo -e "${RED}❌ SOME TESTS FAILED${NC}"
+    echo ""
 
-    [ $test1_match -ne 0 ] && echo -e "${RED}→ Test1_Basic failed${NC}"
-    [ $test2_match -ne 0 ] && echo -e "${RED}→ Test2_Complex failed${NC}"
-    [ $test3_match -ne 0 ] && echo -e "${RED}→ Test3_Vertical failed${NC}"
-    [ $test4_match -ne 0 ] && echo -e "${RED}→ Test4_Evolution1 failed${NC}"
-    [ $test5_match -ne 0 ] && echo -e "${RED}→ Test5_Evolution2 failed${NC}"
-    [ $test6_match -ne 0 ] && echo -e "${RED}→ Test6_Empty failed${NC}"
+    [ $test1_match -eq 0 ] && echo -e "${GREEN}✓${NC} Test1_Basic" || echo -e "${RED}✗${NC} Test1_Basic"
+    [ $test2_match -eq 0 ] && echo -e "${GREEN}✓${NC} Test2_Complex" || echo -e "${RED}✗${NC} Test2_Complex"
+    [ $test3_match -eq 0 ] && echo -e "${GREEN}✓${NC} Test3_Vertical" || echo -e "${RED}✗${NC} Test3_Vertical"
+    [ $test4_match -eq 0 ] && echo -e "${GREEN}✓${NC} Test4_Evolution1" || echo -e "${RED}✗${NC} Test4_Evolution1"
+    [ $test5_match -eq 0 ] && echo -e "${GREEN}✓${NC} Test5_Evolution2" || echo -e "${RED}✗${NC} Test5_Evolution2"
+    [ $test6_match -eq 0 ] && echo -e "${GREEN}✓${NC} Test6_Empty" || echo -e "${RED}✗${NC} Test6_Empty"
 
-    [ -n "$has_leaks" ] && echo -e "${RED}→ Memory leaks detected${NC}"
-    [ -n "$has_errors" ] && echo -e "${RED}→ Valgrind errors detected${NC}"
-    echo "======================================="
+    if [ "$valgrind_skipped" = true ]; then
+        echo -e "${YELLOW}⚠${NC} Valgrind check skipped (not installed)"
+    else
+        [ -n "$has_leaks" ] && echo -e "${RED}✗${NC} Memory leaks detected" || echo -e "${GREEN}✓${NC} No memory leaks"
+        [ -n "$has_errors" ] && echo -e "${RED}✗${NC} Valgrind errors detected"
+    fi
 fi
+echo "======================================="
 
 # Cleanup
 cd - >/dev/null

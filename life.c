@@ -1,24 +1,25 @@
-#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "life.h"
+#include <unistd.h>
 
-void game_of_life(int width, int height, int iterations) {
+void game_of_life(int width, int height, int iterations)
+{
     char *board = calloc(width * height, sizeof(char));
     char *temp_board = calloc(width * height, sizeof(char));
-    if (!board || !temp_board) {
+    if (!board || !temp_board)
+    {
         free(board);
         free(temp_board);
         return ;
     }
 
-    int x = 0 ;
-    int y = 0 ;
+    int x = 0;
+    int y = 0;
     int drawing = 0;
     char cmd;
 
     while (read(STDIN_FILENO, &cmd, 1) > 0) {
-        switch (cmd) {
+        switch(cmd) {
             case 'w':
                 if (y > 0) y--;
                 break;
@@ -37,7 +38,7 @@ void game_of_life(int width, int height, int iterations) {
         }
         if (drawing)
             board[y * width + x] = 1;
-    }
+    }   
 
     for (int iter = 0; iter < iterations; iter++) {
         for (int i = 0; i < height; i++) {
@@ -46,10 +47,10 @@ void game_of_life(int width, int height, int iterations) {
 
                 for (int di = -1; di <= 1; di++) {
                     for (int dj = -1; dj <= 1; dj++) {
-                        if (di == 0 && dj == 0) continue ;
+                        if (di == 0 && dj == 0) continue;
 
-                        int ni = i + di;
-                        int nj = j + dj;
+                        int ni = di + i;
+                        int nj = dj + j;
 
                         if (ni >= 0 && ni < height && nj >= 0 && nj < width) {
                             if (board[ni * width + nj])
@@ -62,7 +63,7 @@ void game_of_life(int width, int height, int iterations) {
                 if (current_cell) {
                     if (alive_neighbors < 2 || alive_neighbors > 3)
                         temp_board[i * width + j] = 0;
-                    else
+                    else 
                         temp_board[i * width + j] = 1;
                 } else {
                     if (alive_neighbors == 3)
@@ -85,9 +86,9 @@ void game_of_life(int width, int height, int iterations) {
         }
         putchar('\n');
     }
-
     free(board);
     free(temp_board);
+
 }
 
 int main(int argc, char **argv)
@@ -101,7 +102,7 @@ int main(int argc, char **argv)
 
     if (width <= 0 || height <= 0 || iterations < 0)
         return (1);
-
+    
     game_of_life(width, height, iterations);
     return (0);
 }
